@@ -1,0 +1,2 @@
+Mail::Exchange allows you to read and write .msg files, the file format that
+Microsoft Outlook uses.
