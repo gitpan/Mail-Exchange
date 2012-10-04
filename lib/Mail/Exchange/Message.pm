@@ -10,6 +10,7 @@ Exchange / MS Outlook.
     use Mail::Exchange::Message;
     use Mail::Exchange::Message::MessageFlags;
     use Mail::Exchange::Recipient;
+    use Mail::Exchange::Attachment;
     use Mail::Exchange::PidTagIDs;
 
     # modify an existing .msg file
@@ -34,6 +35,9 @@ Exchange / MS Outlook.
     $recipient->setDisplayName('John Tester');
     $recipient->setRecipientType('To');
     $message->addRecipient($recipient);
+
+    my $attachment=Mail::Exchange::Message->new("attach.dat");
+    $message->addAttachment($attachment);
 
     binmode(STDOUT);
     print STDOUT qq(Content-type: application/vnd.ms-outlook
@@ -65,17 +69,20 @@ use 5.008;
 
 use Exporter;
 use Encode;
+use Mail::Exchange::Time;
 use Mail::Exchange::PidTagIDs;
 use Mail::Exchange::PidTagDefs;
 use Mail::Exchange::PropertyContainer;
 use Mail::Exchange::NamedProperties;
 use Mail::Exchange::Recipient;
+use Mail::Exchange::Attachment;
+use Mail::Exchange::Message::MessageFlags;
 use OLE::Storage_Lite;
 
 use vars qw($VERSION @ISA);
 @ISA=qw(Mail::Exchange::PropertyContainer Exporter);
 
-$VERSION = "0.01";
+$VERSION = "0.02";
 
 =head2 new()
 
@@ -99,6 +106,25 @@ sub new {
 	
 	if ($file) {
 		$self->parse($file);
+	} else {
+		# these are taken from [MS-OXCMSG] 3.2.5.2
+		# PidTagMessageClass is NOT initialized, there are
+		# subclasses for that.
+		my $now=Mail::Exchange::Time->new(time());
+		$self->set(PidTagImportance,		1);
+		$self->set(PidTagSensitivity,		0);
+		$self->set(PidTagDisplayBcc,		"");
+		$self->set(PidTagDisplayCc,		"");
+		$self->set(PidTagDisplayTo,		"");
+		$self->set(PidTagMessageFlags,		9);
+		$self->set(PidTagMessageSize,		1);
+		$self->set(PidTagHasAttachments,	0);
+		$self->set(PidTagTrustSender,		1);
+		$self->set(PidTagAccess,		3);
+		$self->set(PidTagAccessLevel,		3);
+		$self->set(PidTagUrlCompName,		"No Subject.EML");
+		$self->set(PidTagCreationTime,		$now->mstime());
+		$self->set(PidTagLastModificationTime,	$now->mstime());
 	}
 
 	$self;
@@ -148,6 +174,18 @@ sub parse {
 				}
 			}
 		}
+
+		if (Encode::decode("UCS2LE", $entry->{Name})
+				=~ /__attach_version1.0_#([0-9A-F]{8})/) {
+			my $idx=hex($1);
+			foreach my $subentry (@{$entry->{Child}}) {
+				if ($subentry->{Name} eq $propid) {
+					$self->{_attachments}[$idx]=Mail::Exchange::Attachment->new();
+					$self->{_attachments}[$idx]->_parseAttachmentProperties(
+						$subentry, $entry, $self->{_namedProperties});
+				}
+			}
+		}
 	}
 }
 
@@ -185,7 +223,7 @@ sub _parsePropertyNames {
 
 				if ($pk==0) {
 					$self->{_namedProperties}->namedPropertyID(
-						sprintf("%08x", $niso), undef, $guid);
+						sprintf("0x%04x", $niso), undef, $guid);
 				} else {
 					my $len=unpack("I", substr($stringstreamdata, $niso, 4));
 					$name=Encode::decode("UCS2LE", substr($stringstreamdata, $niso+4, $len));
@@ -344,6 +382,7 @@ sub setSubject {
 	my $subject=shift;
 
 	$self->set(PidTagSubject, $subject);
+	$self->set(PidTagSubjectPrefix, "");
 	$self->set(PidTagConversationTopic, $subject);
 	$self->set(PidTagNormalizedSubject, $subject);
 }
@@ -361,6 +400,21 @@ sub setBody {
 	my $body=shift;
 
 	$self->set(PidTagBody, $body);
+}
+
+=head2 setHTMLBody()
+
+$msg->setHTMLBody($text)
+
+setHTMLBody sets the html body of the message.
+
+=cut
+
+sub setHTMLBody {
+	my $self=shift;
+	my $body=shift;
+
+	$self->set(PidTagHtml, $body);
 }
 
 =head2 setRtfBody()
@@ -519,35 +573,42 @@ sub save {
 		push(@streams, $self->{_recipients}[$i]->OleContainer($i, $unicode));
 	}
 
+	foreach my $i (0..$#{$self->{_attachments}}) {
+		push(@streams, $self->{_attachments}[$i]->OleContainer($i, $unicode));
+	}
+
 	my @ltime=localtime();
 	my $root=OLE::Storage_Lite::PPS::Root->new(\@ltime, \@ltime, \@streams);
 	$root->save($output);
 }
 
-=head2 addattachment()
+=head2 addAttachment()
 
-addattachment($object)
+addAttachment($object)
 
-Adds a Mail::Exchange::Attachment object to a message. Not implemented yet.
+Adds a Mail::Exchange::Attachment object to a message.
 
 =cut
 
-sub addattachment($$) {
+sub addAttachment($$) {
 	my $self=shift;
 	my $attachment=shift;
 
-	die "not implemented"; #@@@
+	push(@{$self->{_attachments}}, $attachment);
+	$self->set(PidTagHasAttachments, 1);
+	my $flags=$self->get(PidTagMessageFlags) || 0;
+	$self->set(PidTagMessageFlags, $flags | mfHasAttach);
 }
 
-=head2 addrecipient()
+=head2 addRecipient()
 
-addrecipient($object)
+addRecipient($object)
 
 Adds a Mail::Exchange::Recipient object to a message.
 
 =cut
 
-sub addrecipient($$) {
+sub addRecipient($$) {
 	my $self=shift;
 	my $recipient=shift;
 

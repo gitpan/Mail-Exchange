@@ -9,12 +9,13 @@ use Encode;
 use Mail::Exchange::PidTagDefs;
 use Mail::Exchange::PidTagIDs;
 use Mail::Exchange::PropertyContainer;
+use Mail::Exchange::CRC qw(crc);
 
 use vars qw($VERSION @ISA @EXPORT);
 @ISA=qw(Exporter);
 @EXPORT=qw(GUIDEncode GUIDDecode);
 
-$VERSION = "0.01";
+$VERSION = "0.02";
 
 sub new {
 	my $class=shift;
@@ -38,8 +39,6 @@ sub OleContainer {
 
 	my $idx=0;
 	foreach my $str (@{$self->{namedprops}}) {
-		### @@@ if this is a string named property 
-		$str->{_streampos}=length $strstream;
 		my $guididx=0;
 		while ($guididx <= $#guidlist) {
 			last if $guidlist[$guididx] eq $str->{guid};
@@ -49,34 +48,40 @@ sub OleContainer {
 			push(@guidlist, $str->{guid});
 		}
 		$str->{_guidindex}=$guididx;
-		my $ucs=Encode::encode("UCS2LE", $str->{str});
-		$strstream.=pack("V", length($ucs)).$ucs;
-		if (length($strstream)%4) {
-			$strstream.="\0"x(4-length($strstream)%4);
-		}
-		$entrystream.=pack("VV", $str->{_streampos},
-			$idx<<16 | $guididx<<1 | 1);
 
-		my $nametoididx;
-		if ($str->{_streamidx}) {		# from parse();
-			$nametoididx=$str->{_streamidx};
-		} else {
-			$nametoididx=0x14;		## @@@ faked
-		}
-		my $crc;
-		if ($str->{_crc}) {		# from parse();
-			$crc=$str->{_crc};
-		} else {
-			$crc=0x83ac4186;		## @@@ faked
-		}
-		$nametoidstring[$nametoididx].=pack("VV", $crc,
-					$idx<<16 | $guididx<<1 | 1);
+		if ($str->{str} =~ /^0x8/) {
+			### this is a LID
+			$entrystream.=pack("VV", hex($str->{str}),
+				$idx<<16 | $guididx<<1 | 0);
 
-		### else if it is a LID
-		### end if
+			my $nametoididx;
+			$nametoididx=(hex($str->{str})^(($guididx << 1)))%0x1f;
+
+			$nametoidstring[$nametoididx].=pack("VV",
+				hex($str->{str}), $idx<<16 | $guididx<<1 | 0);
+		} else {
+			### this is a string named property 
+
+			$str->{_streampos}=length $strstream;
+			my $ucs=Encode::encode("UCS2LE", $str->{str});
+			$strstream.=pack("V", length($ucs)).$ucs;
+			if (length($strstream)%4) {
+				$strstream.="\0"x(4-length($strstream)%4);
+			}
+			$entrystream.=pack("VV", $str->{_streampos},
+				$idx<<16 | $guididx<<1 | 1);
+
+			my $crc;
+			$crc=crc($ucs);
+
+			my $nametoididx;
+			$nametoididx=($crc ^ (($guididx << 1) | 1))%0x1f;
+
+			$nametoidstring[$nametoididx].=pack("VV",
+				$crc, $idx<<16 | $guididx<<1 | 1);
+		}
 		$idx++;
 	}
-
 
 	my $GUIDStream  =OLE::Storage_Lite::PPS::File->
 		new(Encode::encode("UCS2LE", "__substg1.0_00020102"), $self->_packGUIDlist(@guidlist));
