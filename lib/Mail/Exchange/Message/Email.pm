@@ -3,6 +3,7 @@ package Mail::Exchange::Message::Email;
 use Mail::Exchange::PidTagIDs;
 use Mail::Exchange::Message;
 use Mail::Exchange::Recipient;
+use Email::Address;
 
 =head1 NAME
 
@@ -32,7 +33,7 @@ use Exporter;
 use vars qw($VERSION @ISA);
 @ISA=qw(Mail::Exchange::Message Exporter);
 
-$VERSION="0.02";
+$VERSION="0.03";
 
 =head2 new()
 
@@ -76,18 +77,62 @@ sub fromMIME($) {
 	die "wrong object type" if ref $mime ne "Email::MIME";
 
 	$self->set(PidTagStoreSupportMask, 0x40000);
-	$self->set(PidTagDisplayTo, join(", ", $mime->header("To")));
-	$self->set(PidTagDisplayCc, join(", ", $mime->header("Cc")));
-	$self->set(PidTagDisplayBcc, join(", ", $mime->header("Bcc")));
-	$self->set(PidTagInternetMessageId, $mime->header("Message-ID"));
 	$self->set(PidTagMessageFlags, 1);
-	$self->set(PidTagSenderAddressType, "SMTP");
-	$self->set(PidTagSenderEmailAddress, $mime->header("From"));
-	$self->set(PidTagSenderName, $mime->header("From"));
-	$self->set(PidTagSenderSmtpAddress, $mime->header("From"));
-	$self->setSubject($mime->header("Subject"));
 	$self->set(PidTagTransportMessageHeaders,
 		$mime->header_obj->as_string());
+
+	my (@from, @sender);
+	if (@from=Email::Address->parse($mime->header('From'))) {
+	    $self->set(PidTagSentRepresentingAddressType, "SMTP");
+	    $self->set(PidTagSentRepresentingEmailAddress, $from[0]->address);
+	    #$self->set(PidTagSentRepresentingSmtpAddress, $from[0]->address);
+	    $self->set(PidTagSentRepresentingName, $from[0]->name);
+	}
+	if (!(@sender=Email::Address->parse($mime->header('Sender')))) {
+		@sender=@from;
+	}
+	if ($sender[0]) {
+		$self->set(PidTagSenderAddressType, "SMTP");
+		$self->set(PidTagSenderEmailAddress, $sender[0]->address);
+		$self->set(PidTagSenderSmtpAddress, $sender[0]->address);
+		$self->set(PidTagSenderName, $sender[0]->name);
+	}
+
+	my @headers=$mime->header_pairs;
+	for (my $i=0; $i<=$#headers; $i+=2) {
+		my $k=lc $headers[$i];
+		my $v=$headers[$i+1];
+
+		if ($k eq "cc") {
+			$self->set(PidTagDisplayCc, $v);
+		} elsif ($k eq "bcc") {
+			$self->set(PidTagDisplayBcc, $v);
+		} elsif ($k eq "to") {
+			$self->set(PidTagDisplayTo, $v);
+		} elsif ($k eq "date") {
+			# $self->set(PidTagClientSubmitTime, dateparse($k))
+		} elsif ($k eq "importance") {
+			$self->set(PidTagImportance, lc $v eq "low" ? 0 :
+						     lc $v eq "high" ? 2 :
+						     1);
+		} elsif ($k eq "in-reply-to") {
+			$self->set(PidTagInReplyToId, $v);
+		} elsif ($k eq "message-id") {
+			$self->set(PidTagInternetMessageId, $v);
+		} elsif ($k eq "subject") {
+			$self->setSubject($v);
+		}
+	}
+
+	foreach my $type qw(To Cc Bcc) { if ($mime->header($type)) {
+		foreach my $address (Email::Address->parse($mime->header($type))) {
+			my $recipient=Mail::Exchange::Recipient->new();
+			$recipient->setRecipientType($type);
+			$recipient->setDisplayName($address->name);
+			$recipient->setEmailAddress($address->address);
+			$self->addRecipient($recipient);
+		}
+	}}
 
 	# unfortunately, Email::MIME::walk_parts can' pass anything
 	# through to the callback function so we can't use it.
@@ -125,16 +170,6 @@ sub fromMIME($) {
 		}
 		$self->addAttachment($attach);
 	}
-
-	foreach my $type qw(To Cc Bcc) { if ($mime->header($type)) {
-		foreach my $recipname (split(",", $mime->header($type))) {
-			my $recipient=Mail::Exchange::Recipient->new();
-			$recipient->setRecipientType($type);
-			$recipient->setDisplayName($recipname);
-			$recipient->setEmailAddress($recipname);
-			$self->addRecipient($recipient);
-		}
-	}}
 
 	$self;
 }

@@ -8,7 +8,7 @@ Mail::Exchange::Time - time object to convert between unix time and MS time
 
     use Mail::Exchange::Time;
     my $now=Mail::Exchange::Time->new($unixtime);
-    my $now=Mail::Exchange::Time->fromMSTime($mstime);
+    my $now=Mail::Exchange::Time->from_mstime($mstime);
 
     print $now->unixtime;
     print $now->mstime;
@@ -35,7 +35,7 @@ use Exporter;
 use vars qw ($VERSION @ISA @EXPORT_OK);
 @ISA=qw(Exporter);
 @EXPORT_OK=qw(mstime_to_unixtime unixtime_to_mstime);
-$VERSION=0.02;
+$VERSION=0.03;
 
 
 =head2 new()

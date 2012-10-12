@@ -82,7 +82,7 @@ use OLE::Storage_Lite;
 use vars qw($VERSION @ISA);
 @ISA=qw(Mail::Exchange::PropertyContainer Exporter);
 
-$VERSION = "0.02";
+$VERSION = "0.03";
 
 =head2 new()
 
@@ -221,42 +221,18 @@ sub _parsePropertyNames {
 				if ($gi==2) { $guid="PS_PUBLIC_STRINGS"; }
 				if ($gi>2)  { $guid=GUIDDecode(substr($guidstreamdata, 16*($gi-3), 16)); }
 
+				# We don't know the type here, so we just
+				# add the property with undef type. The type
+				# will be set later when we actually read
+				# the value from the properties stream.
 				if ($pk==0) {
 					$self->{_namedProperties}->namedPropertyID(
-						sprintf("0x%04x", $niso), undef, $guid);
+						$niso, undef, $guid);
 				} else {
 					my $len=unpack("I", substr($stringstreamdata, $niso, 4));
 					$name=Encode::decode("UCS2LE", substr($stringstreamdata, $niso+4, $len));
 					$self->{_namedProperties}->namedPropertyID($name, undef, $guid);
 					# @@@ die if returncode != $pi ??
-				}
-				$data=substr($data, 8);
-			}
-		}
-	}
-
-	foreach my $item (@{$dir->{Child}}) {
-		# @@@ Evil hack to pre-set CRCs. We only need this to be so lazy
-		# not to implement the CRC generation right now, and have the CRCs
-		# ready when writing out the nametoid streams again. The correct
-		# implementation is to ignore all this and calculate stuff in
-		# NamedProperties::olecontainer.
-		if (Encode::decode("UCS2LE", $item->{Name}) =~ /__substg1.0_10(..)0102/) {
-			my $data=$item->{Data};
-			my $streamidx=hex($1);
-			while ($data ne "") {
-				my ($crc, $iko)=unpack("II", $data);
-				my $pi=($iko>>16)&0xffff;
-				my $gi=($iko>>1)&0x7fff;
-				my $pk=$iko&1;
-				if ($pk==0) {
-					# _crc == longid in this case, this is what we want to
-					# write anyways
-					$self->{_namedProperties}{namedprops}[$pi&0x7fff]{_crc}=$crc;
-					$self->{_namedProperties}{namedprops}[$pi&0x7fff]{_streamidx}=$streamidx;
-				} else {
-					$self->{_namedProperties}{namedprops}[$pi&0x7fff]{_crc}=$crc;
-					$self->{_namedProperties}{namedprops}[$pi&0x7fff]{_streamidx}=$streamidx;
 				}
 				$data=substr($data, 8);
 			}
@@ -294,6 +270,12 @@ sub set {
 	my ($self, $tag, $value, $flags, $type, $guid) = @_;
 	Mail::Exchange::PropertyContainer::set($self, $tag, $value,
 		$flags, $type, $guid, $self->{_namedProperties});
+}
+
+sub get {
+	my ($self, $tag) = @_;
+	return Mail::Exchange::PropertyContainer::get($self, $tag,
+		$self->{_namedProperties});
 }
 
 =head2 setSender()

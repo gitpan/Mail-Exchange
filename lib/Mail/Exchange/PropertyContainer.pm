@@ -13,7 +13,7 @@ use OLE::Storage_Lite;
 use vars qw($VERSION @ISA);
 @ISA=qw(Exporter);
 
-$VERSION = "0.01";
+$VERSION = "0.03";
 
 sub new {
 	my $class=shift;
@@ -25,6 +25,9 @@ sub new {
 	$self->{_properties}={};
 	$self;
 }
+
+# set a property. Property can be a Pid, a Lid, or a string. It should NOT
+# be an index in a named property list.
 
 sub set {
 	my $self=shift;
@@ -38,6 +41,7 @@ sub set {
 	my $normalized=$self->_propertyid($property, $type, $guid, $namedproperties);
 	$self->{_properties}{$normalized}{val} = $value;
 	$self->{_properties}{$normalized}{flg} = $flags;
+	1;
 }
 
 sub get {
@@ -75,18 +79,19 @@ sub _OlePropertyStreamlist {
 
                 if ($type==0x000d || $type==0x001e || $type==0x001f
                 ||  $type==0x0048 || $type==0x0102) {
-			no warnings 'portable';
+			# At this point, data is in utf-8, so we need to
+			# turn it into whatever the message wants it to be.
 			my $length;
                         if (($type == 0x001E || $type == 0x001F) && $unicode) {
                                 $data=Encode::encode("UCS2LE", $data);
 				$type=0x001F;
-				$length=(length($data)+2) | 0x300000000;
+				$length=(length($data)+2);
                         } elsif (($type == 0x001E || $type == 0x001F) && !$unicode) {
-                                $data=OLE::Storage_Lite::Ucs2Asc($data);
+                                $data=Encode::encode("latin-1", $data);
 				$type=0x001E;
-				$length=(length($data)+1) | 0x300000000;
+				$length=(length($data)+1);
                         } else {
-				$length=(length($data)) | 0x300000000;
+				$length=(length($data));
 			}
                         my $streamname=sprintf("__substg1.0_%04X%04X", $property, $type);
                         my $stream=OLE::Storage_Lite::PPS::File->
@@ -104,9 +109,12 @@ sub _OlePropertyStreamlist {
 }
 
 
-# returns the internal hash index ID of a property,
+# returns the internal hash index id of a property,
 # which is the upper 2 bytes of the official ID, without the
-# lower 2 bytes that encode the type
+# lower 2 bytes that encode the type. This function can
+# be given a Pid, in which case it returns the Pid itself,
+# or a LID or Name, in which case it returns 0x8000 plus
+# the index of this property in the property stream.
 
 sub _propertyid {
 	my $self=shift;
@@ -115,33 +123,29 @@ sub _propertyid {
 	my $guid=shift;
 	my $namedProperties=shift;
 
-	if (substr($property, 0, 6) eq "PidTag") {
-		die "Pid Tag decoding not implemented";
-		# my $hash=$properties{$property};
-		# die "$property unknown"
-		#	unless $hash && $hash->{id};
-		# return $hash->{id};
-	} elsif (substr($property, 0, 6) eq "PidLid") {
-		die "LID decoding not implemented";
-		# get info, get guid, add to named properties
-	} elsif ($property =~/^[0-9]/ && (($property&0xffff0000) == 0)
-	    &&  ($property & 0x8000 || $PidTagDefs{$property})) {
+	if ($property =~ /^[0-9]/) {
+		if ($property & 0xffff0000) {
+			$type=$property&0xffff;
+			$property>>=16;
+		}
+		if (defined($type) && $type==0x1e) {
+			# Map String8 to UCS-String, we'll care
+			# about (non)-Unicode when writing stuff out.
+			$type=0x1f;
+		}
+		if ($property & 0x8000) {
+			# map PidLids to indexes
+			$property=$namedProperties->namedPropertyID(
+				$property, $type, $guid);
+		} else {
+			# This is for when we're parsing and encounter
+			# an unknown property type. Remember it so
+			# we can use it / write it out later.
+			if (!$PidTagDefs{$property} && $type) {
+				$PidTagDefs{$property}{type}=$type;
+			}
+		}
 		return $property;
-	} elsif ($property =~/^[0-9]/ && $property & 0xffff0000) {
-		my $id=($property>>16)&0xffff;
-		return $id if $id & 0x8000;
-		my $type=$property&0xffff;
-		$type=0x1f if $type==0x1e;	# map String8 to UCS-String
-
-		# When parsing, we might encounter an undocumented
-		# property. Remember the type and hope for the best.
-		if (!$PidTagDefs{$id}) {
-			$PidTagDefs{$id}{type}=$type;
-		}
-		if ($PidTagDefs{$id}{type}!=$type) {
-			die(sprintf("wrong type %04x for property %04x", $type, $id));
-		}
-		return $id;
 	} elsif ($namedProperties) {
 		# @@@ map guid name to guid ID ?
 		my $id=$namedProperties->namedPropertyID($property, $type, $guid);
@@ -163,7 +167,9 @@ sub _parseProperties {
 		my $type = $tag&0xffff;
 		my $ptag = ($tag>>16)&0xffff;
 
-		# Named property types aren't stored in __nameid so we have to set them now.
+		# If it's a named property, we will have created it when
+		# parsing __nameid, but we don't know the type yet, so
+		# we have to set it here.
 		if ($ptag & 0x8000) {
 			$namedProperties->setType($ptag, $type);
 		}
@@ -193,7 +199,10 @@ sub _parseProperties {
 			}
 			die "stream for $tag not found" unless $found;
 		}
-		$self->set($tag, $value, $flags);
+		if ($ptag & 0x8000) {
+			$ptag=$namedProperties->LidForID($ptag);
+		}
+		$self->set($ptag, $value, $flags, $type);
 		$data=substr($data, 16);
 	}
 }

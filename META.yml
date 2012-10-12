@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Mail-Exchange
-version:            0.02
+version:            0.03
 abstract:           Read and write Outlook .msg files
 author:
     - Guntram Blohm (gbl@bso2001.com)

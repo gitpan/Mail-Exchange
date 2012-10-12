@@ -15,7 +15,7 @@ use vars qw($VERSION @ISA @EXPORT);
 @ISA=qw(Exporter);
 @EXPORT=qw(GUIDEncode GUIDDecode);
 
-$VERSION = "0.02";
+$VERSION = "0.03";
 
 sub new {
 	my $class=shift;
@@ -49,7 +49,7 @@ sub OleContainer {
 		}
 		$str->{_guidindex}=$guididx;
 
-		if ($str->{str} =~ /^0x8/) {
+		if ($str->{str} =~ /^\d/) {
 			### this is a LID
 			$entrystream.=pack("VV", hex($str->{str}),
 				$idx<<16 | $guididx<<1 | 0);
@@ -137,17 +137,24 @@ sub namedPropertyID {
 
 	my ($str, $type, $guid)=@_;
 	foreach my $i (0..$#{$self->{namedprops}}) {
-		if ($self->{namedprops}[$i]{str} eq $str
-		&&  $self->{namedprops}[$i]{str} eq $guid) {
+		if ($self->{namedprops}[$i]{str} eq $str) {
 			return 0x8000 | $i;
 		}
 	}
+	die("named Property $str unknown, can't add without guid")
+		unless ($guid);
 	push(@{$self->{namedprops}}, {
 		str => $str, guid => $guid, type => $type,
 		_streampos => -1, _guidindex => -1, _crc => 0,
 		_streamidx => 0,
 	});
 	return 0x8000 | $#{$self->{namedprops}};
+}
+
+sub LidForID {
+	my $self=shift;
+	my $id=shift;
+	return $self->{namedprops}[$id&0x7fff]{str};
 }
 
 sub getType {
