@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Mail-Exchange
-version:            0.03
+version:            0.03.1
 abstract:           Read and write Outlook .msg files
 author:
     - Guntram Blohm (gbl@bso2001.com)
@@ -11,6 +11,7 @@ configure_requires:
 build_requires:
     ExtUtils::MakeMaker:  0
 requires:
+    Email::Address:     1.892
     OLE::Storage_Lite:  0.19
 no_index:
     directory:
