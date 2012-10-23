@@ -6,7 +6,6 @@ use vars qw(@ISA @EXPORTER);
 @EXPORT=qw(%PidTagDefs);
 
 our %PidTagDefs=(
-0x0000 => { type => 0x0102, name => "PidTagCurrentDraftEntryId" }, # Contains an EntryID for the message corresponding to the unsent reply to another message.
 0x0001 => { type => 0x0102, name => "PidTagTemplateData" }, # Describes the controls used in the template that is used to retrieve address book information.
 0x0002 => { type => 0x000b, name => "PidTagAlternateRecipientAllowed" }, # Specifies whether the sender permits the message to be auto-forwarded.
 0x0004 => { type => 0x001f, name => "PidTagAutoForwardComment" }, # Contains text included in an automatically-generated message.
@@ -103,7 +102,7 @@ our %PidTagDefs=(
 0x0e06 => { type => 0x0040, name => "PidTagMessageDeliveryTime" }, # Contains the posting date of the item or entry.
 0x0e07 => { type => 0x0003, name => "PidTagMessageFlags" }, # Specifies the status of the Message object.
 0x0e08 => { type => 0x0003, name => "PidTagMessageSize" }, # Contains the size, in bytes, consumed by the Message object on the server.
-# 0x0e08 => { type => 0x0014, name => "PidTagMessageSizeExtended" }, # 
+0x0e08 => { type => 0x0014, name => "PidTagMessageSizeExtended" }, # 
 0x0e09 => { type => 0x0102, name => "PidTagParentEntryId" }, # Contains the EntryID of the folder where messages reside.
 0x0e0f => { type => 0x000b, name => "PidTagResponsibility" }, # Specifies whether another mail agent has ensured that the message will be delivered.
 0x0e12 => { type => 0x000d, name => "PidTagMessageRecipients" }, # Identifies all of the recipients (1) of the current message.
@@ -211,7 +210,7 @@ our %PidTagDefs=(
 0x36e2 => { type => 0x0003, name => "PidTagOrdinalMost" }, # 
 0x36e4 => { type => 0x1102, name => "PidTagFreeBusyEntryIds" }, # 
 0x36e5 => { type => 0x001f, name => "PidTagDefaultPostMessageClass" }, # Contains the message class of the object.
-# 0x3701 => { type => 0x000d, name => "PidTagAttachDataObject" }, # Contains the binary representation of the Attachment object in an application-specific format.
+0x3701 => { type => 0x000d, name => "PidTagAttachDataObject" }, # Contains the binary representation of the Attachment object in an application-specific format.
 0x3701 => { type => 0x0102, name => "PidTagAttachDataBinary" }, # Contains the contents of the file to be attached.
 0x3702 => { type => 0x0102, name => "PidTagAttachEncoding" }, # Contains encoding information about the Attachment object.
 0x3703 => { type => 0x001f, name => "PidTagAttachExtension" }, # Contains a file name extension that indicates the document type of an attachment.
@@ -418,7 +417,9 @@ our %PidTagDefs=(
 0x6705 => { type => 0x0003, name => "PidTagSortLocaleId" }, # Contains the locale identifier.
 0x6707 => { type => 0x001f, name => "PidTagUrlName" }, # Contains the URL of an object.
 0x6708 => { type => 0x000b, name => "PidTagSubfolder" }, # Indicates whether the resource is a folder as displayed to end users.
-0x6709 => { type => 0x0040, name => "PidTagLocalCommitTime" }, # 
+0x6709 => { type => 0x0040, name => "PidTagLocalCommitTime" }, # Specifies the time, in UTC, that a Message object or Folder object was last changed.
+0x670a => { type => 0x0040, name => "PidTagLocalCommitTimeMax" }, # Contains the time of the most recent message change within the folder container, excluding messages changed within subfolders.
+0x670b => { type => 0x0003, name => "PidTagDeletedCountTotal" }, # Contains the total count of messages that have been deleted from a folder, excluding messages deleted within subfolders.
 0x670e => { type => 0x001f, name => "PidTagFlatUrlName" }, # Contains a unique identifier for an item across the store.
 0x671c => { type => 0x001f, name => "PidTagPublicFolderAdministrativeDescription" }, # Contains a text description of a public folder.
 0x671d => { type => 0x0102, name => "PidTagPublicFolderProxy" }, # Contains the base64 encoding of the Object GUID for a mail-enabled public folder.
@@ -450,8 +451,8 @@ our %PidTagDefs=(
 0x6841 => { type => 0x0003, name => "PidTagScheduleInfoResourceType" }, # Set to 0x00000000 when sending and is ignored on receipt.
 0x6841 => { type => 0x0003, name => "PidTagSearchFolderTemplateId" }, # Contains the ID of the template that is being used for the search.
 0x6842 => { type => 0x000b, name => "PidTagScheduleInfoDelegatorWantsCopy" }, # Indicates whether the delegator wants to receive copies of the meeting-related objects that are sent to the delegate.
-0x6842 => { type => 0x0048, name => "PidTagWlinkGroupHeaderID" }, # Specifies the ID of the navigation shortcut that groups other navigation shortcuts.
 0x6842 => { type => 0x0102, name => "PidTagSearchFolderId" }, # Contains a GUID that identifies the search folder.
+0x6842 => { type => 0x0102, name => "PidTagWlinkGroupHeaderID" }, # Specifies the ID of the navigation shortcut that groups other navigation shortcuts.
 0x6843 => { type => 0x000b, name => "PidTagScheduleInfoDontMailDelegates" }, # 
 0x6844 => { type => 0x0102, name => "PidTagSearchFolderRecreateInfo" }, # This property is not to be used.
 0x6844 => { type => 0x101f, name => "PidTagScheduleInfoDelegateNames" }, # Specifies the names of the delegates.
@@ -493,9 +494,8 @@ our %PidTagDefs=(
 0x686b => { type => 0x1003, name => "PidTagDelegateFlags" }, # 
 0x686c => { type => 0x0102, name => "PidTagScheduleInfoFreeBusy" }, # This property is deprecated and is not to be used.
 0x686d => { type => 0x000b, name => "PidTagScheduleInfoAutoAcceptAppointments" }, # Indicates whether a client or server is to automatically respond to all meeting requests for the attendee or resource.
-0x686e => { type => 0x000b, name => "PidTagScheduleInfoDisallowRecurringAppts" }, # Indicates whether a client or server, when automatically responding to meeting requests, is to decline Meeting Request objects that represent a recurring series.
 0x686f => { type => 0x000b, name => "PidTagScheduleInfoDisallowOverlappingAppts" }, # Indicates whether a client or server, when automatically responding to meeting requests, is to decline Meeting Request objects that overlap with previously scheduled events.
-0x6890 => { type => 0x0048, name => "PidTagWlinkClientID" }, # Specifies the Client ID that allows the client to determine whether the shortcut was created on the current machine/user via an equality test.
+0x6890 => { type => 0x0102, name => "PidTagWlinkClientID" }, # Specifies the Client ID that allows the client to determine whether the shortcut was created on the current machine/user via an equality test.
 0x6891 => { type => 0x0102, name => "PidTagWlinkAddressBookStoreEID" }, # 
 0x6892 => { type => 0x0003, name => "PidTagWlinkROGroupType" }, # Specifies the type of group header.
 0x7001 => { type => 0x0102, name => "PidTagViewDescriptorBinary" }, # Contains view definitions.

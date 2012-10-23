@@ -13,7 +13,7 @@ use OLE::Storage_Lite;
 use vars qw($VERSION @ISA);
 @ISA=qw(Exporter);
 
-$VERSION = "0.03";
+$VERSION = "0.04";
 
 sub new {
 	my $class=shift;
@@ -99,7 +99,14 @@ sub _OlePropertyStreamlist {
                         push(@streams, $stream);
                         $data=$length;
                 }
-                $propertystr.=pack("VVQ", ($property<<16|$type), $flags, $data);
+		eval {
+			$propertystr.=pack("VVQ", ($property<<16|$type),
+				$flags, $data);
+		};
+		if ($@) {
+			$propertystr.=pack("VVVV", ($property<<16|$type),
+				$flags, $data&0xffffffff, $data/4294967296.0);
+		}
         }
         my $stream=OLE::Storage_Lite::PPS::File->
                 new(Encode::encode("UCS2LE", "__properties_version1.0"), $propertystr);
@@ -135,7 +142,7 @@ sub _propertyid {
 		}
 		if ($property & 0x8000) {
 			# map PidLids to indexes
-			$property=$namedProperties->namedPropertyID(
+			$property=$namedProperties->namedPropertyIndex(
 				$property, $type, $guid);
 		} else {
 			# This is for when we're parsing and encounter
@@ -148,7 +155,7 @@ sub _propertyid {
 		return $property;
 	} elsif ($namedProperties) {
 		# @@@ map guid name to guid ID ?
-		my $id=$namedProperties->namedPropertyID($property, $type, $guid);
+		my $id=$namedProperties->namedPropertyIndex($property, $type, $guid);
 		return $id;
 	}
 	die ("can't make sense of $property");
@@ -163,7 +170,15 @@ sub _parseProperties {
 
 	my $data=substr($file->{Data}, $headersize);	# ignore header
 	while ($data) {
-		my ($tag, $flags, $value)=unpack("VVQ", $data);
+		my ($tag, $flags, $value, $v1, $v2);
+		eval {
+			($tag, $flags, $value)=unpack("VVQ", $data);
+			$v1=$value&0xffffffff;
+		};
+		if ($@) {
+			($tag, $flags, $v1, $v2)=unpack("VVVV", $data);
+			$value=$v2*4294967296+$v1;
+		}
 		my $type = $tag&0xffff;
 		my $ptag = ($tag>>16)&0xffff;
 
@@ -176,11 +191,11 @@ sub _parseProperties {
 		if ($type & 0x1000) {
 			die("Multiple properties not implemented");
 		}
-		if ($type==0x0002) { $value&=0xffff; }
+		if ($type==0x0002) { $value=$v1&0xffff; }
 		if ($type==0x0003 || $type==0x0004 || $type==0x000a || $type==0x000b
 		||  $type==0x000d || $type==0x001e || $type==0x001f || $type==0x0048
 		||  $type==0x00FB || $type==0x00FD || $type==0x00FE || $type==0x0102) {
-			$value&=0xffffffff;
+			$value=$v1;
 		}
 		if ($type==0x000d || $type==0x001E || $type==0x001F
 		||  $type==0x0048 || $type==0x0102) {

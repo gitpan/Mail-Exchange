@@ -82,7 +82,7 @@ use OLE::Storage_Lite;
 use vars qw($VERSION @ISA);
 @ISA=qw(Mail::Exchange::PropertyContainer Exporter);
 
-$VERSION = "0.03";
+$VERSION = "0.04";
 
 =head2 new()
 
@@ -211,7 +211,7 @@ sub _parsePropertyNames {
 		if ($item->{Name} eq $psid) {
 			my $data=$item->{Data};
 			while ($data ne "") {
-				my ($niso, $iko)=unpack("II", $data);
+				my ($niso, $iko)=unpack("VV", $data);
 				my $pi=($iko>>16)&0xffff;
 				my $gi=($iko>>1)&0x7fff;
 				my $pk=$iko&1;
@@ -226,12 +226,12 @@ sub _parsePropertyNames {
 				# will be set later when we actually read
 				# the value from the properties stream.
 				if ($pk==0) {
-					$self->{_namedProperties}->namedPropertyID(
+					$self->{_namedProperties}->namedPropertyIndex(
 						$niso, undef, $guid);
 				} else {
-					my $len=unpack("I", substr($stringstreamdata, $niso, 4));
+					my $len=unpack("V", substr($stringstreamdata, $niso, 4));
 					$name=Encode::decode("UCS2LE", substr($stringstreamdata, $niso+4, $len));
-					$self->{_namedProperties}->namedPropertyID($name, undef, $guid);
+					$self->{_namedProperties}->namedPropertyIndex($name, undef, $guid);
 					# @@@ die if returncode != $pi ??
 				}
 				$data=substr($data, 8);

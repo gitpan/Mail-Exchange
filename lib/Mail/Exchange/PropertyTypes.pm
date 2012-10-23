@@ -10,7 +10,6 @@ my %PropertyTypes=(
 
 	0x0002 => "PtypInteger16",
 	0x0003 => "PtypInteger32",
-	0x0004 => "PtypInteger32",
 	0x0005 => "PtypFloating64",
 	0x000B => "PtypBoolean",
 	0x000D => "PtypObject",

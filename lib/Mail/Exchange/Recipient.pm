@@ -11,7 +11,7 @@ Mail::Exchange::Recipient - class to handle message recipients
     my $recipient=Mail::Exchange::Recipient->new();
     $recipient->setEmailAddress('gbl@bso2001.com');
     $recipient->setDisplayName('Guntram Blohm <gbl@bso2001.com>');
-    $message->addrecipient($recipient);
+    $message->addRecipient($recipient);
 
 =head1 DESCRIPTION
 
@@ -37,7 +37,7 @@ use Mail::Exchange::PropertyContainer;
 use vars qw($VERSION @ISA);
 @ISA=qw(Mail::Exchange::PropertyContainer Exporter);
 
-$VERSION = "0.01";
+$VERSION = "0.04";
 
 =head2 new()
 

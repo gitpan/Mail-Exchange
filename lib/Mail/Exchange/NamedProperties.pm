@@ -8,6 +8,7 @@ use Exporter;
 use Encode;
 use Mail::Exchange::PidTagDefs;
 use Mail::Exchange::PidTagIDs;
+use Mail::Exchange::PidLidDefs;
 use Mail::Exchange::PropertyContainer;
 use Mail::Exchange::CRC qw(crc);
 
@@ -15,7 +16,7 @@ use vars qw($VERSION @ISA @EXPORT);
 @ISA=qw(Exporter);
 @EXPORT=qw(GUIDEncode GUIDDecode);
 
-$VERSION = "0.03";
+$VERSION = "0.04";
 
 sub new {
 	my $class=shift;
@@ -51,14 +52,14 @@ sub OleContainer {
 
 		if ($str->{str} =~ /^\d/) {
 			### this is a LID
-			$entrystream.=pack("VV", hex($str->{str}),
+			$entrystream.=pack("VV", $str->{str},
 				$idx<<16 | $guididx<<1 | 0);
 
 			my $nametoididx;
-			$nametoididx=(hex($str->{str})^(($guididx << 1)))%0x1f;
+			$nametoididx=($str->{str}^($guididx << 1))%0x1f;
 
 			$nametoidstring[$nametoididx].=pack("VV",
-				hex($str->{str}), $idx<<16 | $guididx<<1 | 0);
+				$str->{str}, $idx<<16 | $guididx<<1 | 0);
 		} else {
 			### this is a string named property 
 
@@ -111,13 +112,13 @@ sub GUIDEncode {
 	my $str=shift;
 
 	return undef unless $str =~ /^([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})$/i;
-	return pack("VnnnH12", hex($1), hex($2), hex($3), hex($4), $5);
+	return pack("VvvnH12", hex($1), hex($2), hex($3), hex($4), $5);
 }
 
 sub GUIDDecode {
 	my $guid=shift;
 
-	my @f=unpack("VnnnH12", $guid);
+	my @f=unpack("VvvnH12", $guid);
 	return sprintf("%08x-%04x-%04x-%04x-%12s", @f);
 }
 
@@ -132,12 +133,41 @@ sub _packGUIDlist {
 	return $str;
 }
 
-sub namedPropertyID {
+=head2 namedPropertyIndex
+
+=cut
+
+# There are a few special cases to consider.
+# - Standard call, when creating a message, is with property name,
+#   property type, and guid. In this case, match it against
+#   what we have and return an appropriate index, or create a new
+#   entry if there's no match.
+# - Also, when creating a message, the user may call us with a 
+#   PidLid ID without name or type; in this case, try to find out
+#   about those from the PidLidDefs hash.
+# - When parsing a message, we'll be called first with name and guid,
+#   but without a type, as type isn't present in __nameid. In this
+#   case, create an entry with an undef type; the parser will set
+#   the type later using setType.
+# - Also, when parsing properties later, the parser will call us
+#   with a property name  it knows to exist (because parsing __nameid
+#   will have created it), but the parser doesn't know the GUID. So
+#   if we're not given a guid (or type), and can't determine it from
+#   the PidLid definitions, ignore it and just use the string to look
+#   up the correct ID.
+
+sub namedPropertyIndex {
 	my $self=shift;
 
 	my ($str, $type, $guid)=@_;
+	if ($str=~/^\d/ && $str>=0x8000 && $PidLidDefs{$str}) {
+		$type=$PidLidDefs{$str}{type} unless defined $type;
+		$guid=$PidLidDefs{$str}{guid} unless defined $guid;
+	}
 	foreach my $i (0..$#{$self->{namedprops}}) {
-		if ($self->{namedprops}[$i]{str} eq $str) {
+		if ($self->{namedprops}[$i]{str} eq $str
+		&&  (!$type || $self->{namedprops}[$i]{type} == $type)
+		&&  (!$guid || $self->{namedprops}[$i]{guid} eq $guid)) {
 			return 0x8000 | $i;
 		}
 	}

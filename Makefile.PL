@@ -1,6 +1,7 @@
 use ExtUtils::MakeMaker;
+use vars qw($VERSION);
 
-$VERSION="0.03.1";
+$VERSION = "0.04";
 
 WriteMakefile(
     ($] >= 5.008 ? (

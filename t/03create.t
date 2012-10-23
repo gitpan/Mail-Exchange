@@ -10,7 +10,7 @@ use strict;
 # use diagnostics;
 use utf8;
 
-plan tests => 95;
+plan tests => 101;
 
 ok(1, "Load Module");
 
@@ -33,16 +33,11 @@ ok($message->set(PidTagCreationTime, 129943353273940000), "set time");
 ok($message->set(PidTagAccess, 2), "set numeric");
 ok($message->set(PidTagRtfInSync, 0), "set boolean");
 ok($message->set(PidTagChangeKey, "\xde\xad\xbe\xef"), "set binary");
-TODO: {
-	local $TODO="GUID lookup for PidLid Setting not implemented";
-	eval {
-	ok($message->set(PidLidCurrentVersionName, "12.0"), "set LID String");
-	ok($message->set(PidLidValidFlagStringProof, 129943352997900000),
-							"set LID time");
-	ok($message->set(PidLidCurrentVersion, 126539), "set LID numeric");
-	ok($message->set(PidLidTaskComplete, 0), "set LID boolean");
-	};
-}
+ok($message->set(PidLidCurrentVersionName, "12.0"), "set LID String");
+ok($message->set(PidLidValidFlagStringProof, 129943352997900000),
+						"set LID time");
+ok($message->set(PidLidCurrentVersion, 126539), "set LID numeric");
+ok($message->set(PidLidTaskComplete, 0), "set LID boolean");
 
 ok($message->setUnicode(1), "set Unicode flag");
 unlink("t/created-unicode.msg");
@@ -68,7 +63,7 @@ my @expectedname=qw(
 	__substg1.0_0C1F001F __substg1.0_0E02001F __substg1.0_0E03001F
 	__substg1.0_0E04001F __substg1.0_0E1D001F __substg1.0_1000001F
 	__substg1.0_10F3001F __substg1.0_5D01001F __substg1.0_65E20102
-	__substg1.0_8000001F
+	__substg1.0_8000001F __substg1.0_8001001F
 	__properties_version1.0
 );
 
@@ -96,14 +91,19 @@ SKIP: {
 	is(Encode::decode("UCS2LE", $guidstream->{Name}),
 		"__substg1.0_00020102", "guidstream present");
 	is(hexconv($guidstream->{Data}),
-		"86 03 02 00 00 00 00 00 c0 00 00 00 00 00 00 46 ",
+		"86 03 02 00 00 00 00 00 c0 00 00 00 00 00 00 46 ".
+		"08 20 06 00 00 00 00 00 c0 00 00 00 00 00 00 46 ".
+		"03 20 06 00 00 00 00 00 c0 00 00 00 00 00 00 46 ",
 		"guidstream content");
 
 	my $entrystream=$child->{Child}[1];
 	is(Encode::decode("UCS2LE", $entrystream->{Name}),
 		"__substg1.0_00030102", "entrystream present");
 	is(hexconv($entrystream->{Data}),
-		"00 00 00 00 07 00 00 00 ", "entrystream content");
+		"00 00 00 00 07 00 00 00 54 85 00 00 08 00 01 00 ".
+		"bf 85 00 00 08 00 02 00 52 85 00 00 08 00 03 00 ".
+		"1c 81 00 00 0a 00 04 00 ",
+		"entrystream content");
 
 	my $stringstream=$child->{Child}[2];
 	is(Encode::decode("UCS2LE", $stringstream->{Name}),
@@ -114,9 +114,8 @@ SKIP: {
 		"stringstream content");
 
 	# ---- property name to property id mapping stream
-	# we have only one, because we only set one named property,
 
-	my $nametoidstream=$child->{Child}[3];
+	my $nametoidstream=$child->{Child}[6];
 	is(Encode::decode("UCS2LE", $nametoidstream->{Name}),
 		"__substg1.0_100E0102", "nametoidstream present");
 	is(hexconv($nametoidstream->{Data}),
@@ -188,7 +187,7 @@ SKIP: {
 	__substg1.0_0C1F001E __substg1.0_0E02001E __substg1.0_0E03001E
 	__substg1.0_0E04001E __substg1.0_0E1D001E __substg1.0_1000001E
 	__substg1.0_10F3001E __substg1.0_5D01001E __substg1.0_65E20102
-	__substg1.0_8000001E
+	__substg1.0_8000001E __substg1.0_8001001E
 	__properties_version1.0
 );
 
@@ -252,6 +251,9 @@ SKIP: {
 		"named prop",
 		"Named Property String");
 }
+
+unlink("t/created-unicode.msg");
+unlink("t/created-latin1.msg");
 
 sub hexconv {
 	use bytes;
